@@ -120,8 +120,8 @@ function warningsFromResult(
     list.push({ id: uid("dw"), severity: "warn", message: w });
   }
   for (const w of warnings) {
-    // Skip soft overflow strings already represented via metrics.overflow.
-    if (/text overflow/i.test(w)) continue;
+    // Skip notes that metrics already turn into their own warning row.
+    if (/text overflow|glyph|fallback font|subset font/i.test(w)) continue;
     const sev = /fail|error|encrypted|cannot/i.test(w) ? "error" : "warn";
     list.push({ id: uid("w"), severity: sev, message: w });
   }

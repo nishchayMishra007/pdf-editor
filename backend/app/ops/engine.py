@@ -22,10 +22,13 @@ from typing import Iterable, Optional, Union
 import fitz
 
 from .fonts import (
+    _sha,
     ensure_bundled_fonts,
     find_bundled_font,
     missing_glyphs,
     resolve_font,
+    split_covered_runs,
+    style_preference,
 )
 from .layout import extract_page_layout, find_span
 from .models import BBox, EditOp, OpType
@@ -242,6 +245,46 @@ def _insert_span_text(
         return False, f"insert failed: {exc}", None
 
 
+def _insert_mixed_runs(
+    page: fitz.Page,
+    *,
+    runs: list[tuple[bool, str]],
+    bbox: BBox,
+    embedded_name: str,
+    embedded_buf: Optional[bytes],
+    fallback_name: str,
+    fallback_buf: bytes,
+    fontsize: float,
+    color: tuple[float, float, float],
+    origin: Optional[tuple[float, float]],
+) -> tuple[bool, Optional[str], Optional[BBox]]:
+    """Draw covered glyphs with the embedded font and the rest with a fallback."""
+    if origin is None:
+        origin = (bbox.x0, bbox.y1 - fontsize * 0.15)
+    x, y = origin
+    total = 0.0
+    try:
+        for covered, chunk in runs:
+            if not chunk:
+                continue
+            fontname = embedded_name if covered else fallback_name
+            buf = embedded_buf if covered else fallback_buf
+            page.insert_text(
+                (x, y),
+                chunk,
+                fontname=fontname,
+                fontsize=fontsize,
+                color=color,
+            )
+            width = _approx_text_width(chunk, fontname, fontsize, buf)
+            x += width
+            total += width
+        drawn = BBox(x0=bbox.x0, y0=bbox.y0, x1=bbox.x0 + max(total, bbox.width()), y1=bbox.y1)
+        return True, None, drawn
+    except Exception as exc:  # noqa: BLE001
+        return False, f"insert failed: {exc}", None
+
+
 def _redact_span(page: fitz.Page, bbox: Iterable[float]) -> None:
     """Mark a span for removal. fill=False → no white cover rectangle."""
     rect = fitz.Rect(bbox)
@@ -419,50 +462,73 @@ def apply_ops(source: Source, ops: list[EditOp]) -> OpsResult:
                     warnings.append(f"Op {op.id}: {fres.warning}")
                     metrics.notes.append(fres.warning)
 
-                # Count glyphs that forced a non-embedded fallback (subset miss or bundled).
+                # Subset fonts often omit unused digits. Draw those characters
+                # from a metric-compatible font and keep the rest in the original.
                 miss = missing_glyphs(fres.buffer, text) if fres.buffer else []
-                if miss:
-                    metrics.fallback_glyphs = miss
-                    metrics.fallback_glyph_count = len(miss)
-                elif fres.source == "bundled":
-                    # Whole run substituted — count non-space chars.
-                    metrics.fallback_glyphs = [c for c in text if not c.isspace()]
-                    metrics.fallback_glyph_count = len(metrics.fallback_glyphs)
-                # base14 alias of Times/Arial/etc. is not counted as a fallback.
-
-                if fres.buffer and miss:
-                    bundled = find_bundled_font()
+                runs: Optional[list[tuple[bool, str]]] = None
+                fallback_name: Optional[str] = None
+                fallback_buf: Optional[bytes] = None
+                horizontal = direction is None or (
+                    abs(direction[1]) < 1e-3 and direction[0] >= 0
+                )
+                if fres.buffer and miss and "\n" not in text and horizontal:
+                    bundled = find_bundled_font(style_preference(font))
                     if bundled:
-                        fres.buffer = bundled.read_bytes()
-                        fres.fontname = f"fb_glyph"
-                        fres.source = "bundled"
-                        metrics.font_source = "bundled"
-                        msg = (
-                            f"Op {op.id}: subset font missing {len(miss)} glyph(s) "
-                            f"{miss!r}; using bundled {bundled.name}"
-                        )
-                        warnings.append(msg)
-                        metrics.notes.append(msg)
+                        fallback_buf = bundled.read_bytes()
+                        still = missing_glyphs(fallback_buf, "".join(miss))
+                        if not still:
+                            runs = split_covered_runs(fres.buffer, text)
+                            fallback_name = f"fb_{_sha(fallback_buf)}"
+                        else:
+                            metrics.fallback_glyphs = still
+                            metrics.fallback_glyph_count = len(still)
+                            metrics.font_source = "bundled"
+                            msg = (
+                                f"Op {op.id}: font missing glyph(s) {still!r}"
+                            )
+                            warnings.append(msg)
+                            metrics.notes.append(msg)
                     else:
+                        metrics.fallback_glyphs = miss
+                        metrics.fallback_glyph_count = len(miss)
                         msg = (
                             f"Op {op.id}: subset font missing {len(miss)} glyph(s); "
                             "no bundled fallback found"
                         )
                         warnings.append(msg)
                         metrics.notes.append(msg)
+                elif fres.source == "bundled":
+                    metrics.fallback_glyphs = [c for c in text if not c.isspace()]
+                    metrics.fallback_glyph_count = len(metrics.fallback_glyphs)
 
-                registered = _register_font(page, fres.fontname, fres.buffer)
-                ok, warn, drawn = _insert_span_text(
-                    page,
-                    text=text,
-                    bbox=dest,
-                    fontname=registered,
-                    fontsize=float(size),
-                    color=color,
-                    origin=origin,  # type: ignore[arg-type]
-                    direction=direction,
-                    fontbuffer=fres.buffer,
-                )
+                if runs and fallback_name and fallback_buf is not None:
+                    embedded_name = _register_font(page, fres.fontname, fres.buffer)
+                    fb_registered = _register_font(page, fallback_name, fallback_buf)
+                    ok, warn, drawn = _insert_mixed_runs(
+                        page,
+                        runs=runs,
+                        bbox=dest,
+                        embedded_name=embedded_name,
+                        embedded_buf=fres.buffer,
+                        fallback_name=fb_registered,
+                        fallback_buf=fallback_buf,
+                        fontsize=float(size),
+                        color=color,
+                        origin=origin,  # type: ignore[arg-type]
+                    )
+                else:
+                    registered = _register_font(page, fres.fontname, fres.buffer)
+                    ok, warn, drawn = _insert_span_text(
+                        page,
+                        text=text,
+                        bbox=dest,
+                        fontname=registered,
+                        fontsize=float(size),
+                        color=color,
+                        origin=origin,  # type: ignore[arg-type]
+                        direction=direction,
+                        fontbuffer=fres.buffer,
+                    )
                 if drawn is not None:
                     metrics.drawn_bbox = (
                         drawn.x0,

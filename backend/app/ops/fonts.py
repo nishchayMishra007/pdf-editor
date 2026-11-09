@@ -272,3 +272,32 @@ def missing_glyphs(font_buffer: Optional[bytes], text: str) -> list[str]:
 def font_has_glyphs(font_buffer: Optional[bytes], text: str) -> bool:
     """Best-effort check that every codepoint exists in the font."""
     return not missing_glyphs(font_buffer, text)
+
+
+def style_preference(font_name: str) -> str:
+    """Serif vs sans, so a missing Times digit is not drawn in a sans font."""
+    stem = _norm_font_key(font_name or "")
+    if any(s in stem for s in ("serif", "times", "georgia", "roman", "cambria", "garamond")):
+        return "serif"
+    return "sans"
+
+
+def split_covered_runs(font_buffer: Optional[bytes], text: str) -> list[tuple[bool, str]]:
+    """Split text into runs the embedded font can draw vs runs it cannot."""
+    missing = set(missing_glyphs(font_buffer, text))
+    runs: list[tuple[bool, str]] = []
+    buf: list[str] = []
+    covered: Optional[bool] = None
+    for ch in text:
+        ok = ch.isspace() or ch not in missing
+        if covered is None:
+            covered = ok
+        if ok != covered:
+            runs.append((bool(covered), "".join(buf)))
+            buf = [ch]
+            covered = ok
+        else:
+            buf.append(ch)
+    if buf and covered is not None:
+        runs.append((covered, "".join(buf)))
+    return runs
