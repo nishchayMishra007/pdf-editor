@@ -190,36 +190,38 @@ def resolve_font(
             source="embedded",
         )
 
-    # Standard PDF Base-14 / common Windows names → built-in Base-14 (no embed needed)
+    # Standard PDF Base-14 names. Use the built-in font (not a TTF substitute)
+    # so Helvetica/Times edits keep the original baseline and glyph widths.
     base14_map = {
-        "timesroman": "times",
-        "timesnewroman": "times",
-        "timesnewromanpsmt": "times",
-        "times": "times",
-        "timesbold": "tiib",
-        "timesitalic": "tii",
+        "timesroman": "tiro",
+        "timesnewroman": "tiro",
+        "timesnewromanpsmt": "tiro",
+        "times": "tiro",
+        "timesbold": "tibo",
+        "timesnewromanbold": "tibo",
+        "timesitalic": "tiit",
+        "timesnewromanitalic": "tiit",
         "timesbolditalic": "tibi",
         "helvetica": "helv",
         "arial": "helv",
         "arialmt": "helv",
         "arialnarrow": "helv",
+        "helveticabold": "hebo",
+        "arialbold": "hebo",
+        "arialboldmt": "hebo",
+        "helveticaoblique": "heit",
+        "helveticaitalic": "heit",
+        "arialitalic": "heit",
+        "helveticaboldoblique": "hebi",
+        "arialbolditalic": "hebi",
         "courier": "cour",
         "couriernew": "cour",
+        "courierbold": "cobo",
+        "couriernewbold": "cobo",
         "symbol": "symb",
-        "zapfdingbats": "zabd",
+        "zapfdingbats": "zadb",
     }
     if stem in base14_map:
-        # Prefer a metric-compatible Liberation buffer so insert_textbox works
-        # (Base-14 names alone are rejected by textbox in recent PyMuPDF).
-        prefer = "serif" if "times" in stem or "roman" in stem else "sans"
-        bundled = find_bundled_font(prefer)
-        if bundled:
-            return FontResolution(
-                fontname=f"b14_{_sha(bundled.read_bytes())}",
-                buffer=bundled.read_bytes(),
-                source="base14",
-                warning=None,
-            )
         return FontResolution(
             fontname=base14_map[stem],
             buffer=None,
