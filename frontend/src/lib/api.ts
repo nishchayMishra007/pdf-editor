@@ -5,19 +5,9 @@ import type {
   PageLayout,
 } from "./types";
 
-declare global {
-  interface Window {
-    pdfEditor?: { apiBase?: string };
-  }
-}
-
-export function apiBase(): string {
-  const fromApp =
-    typeof window !== "undefined" ? window.pdfEditor?.apiBase : undefined;
-  const raw =
-    fromApp || process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
-  return raw.replace(/\/$/, "");
-}
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") ||
+  "http://127.0.0.1:8000";
 
 export class ApiError extends Error {
   status: number;
@@ -64,7 +54,7 @@ async function request<T>(
 ): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${apiBase()}${path}`, init);
+    res = await fetch(`${API_BASE}${path}`, init);
   } catch {
     throw new ApiError(
       "Cannot reach the editor server. Start the backend on port 8000.",
@@ -79,6 +69,10 @@ async function request<T>(
   const ct = res.headers.get("content-type") || "";
   if (ct.includes("application/json")) return res.json() as Promise<T>;
   return res as unknown as T;
+}
+
+export function apiBase() {
+  return API_BASE;
 }
 
 export async function listDocuments(): Promise<DocumentMeta[]> {
@@ -157,15 +151,15 @@ export async function putOps(
 }
 
 export function workingPdfUrl(id: string, bust = 0): string {
-  return `${apiBase()}/documents/${id}/working?t=${bust}`;
+  return `${API_BASE}/documents/${id}/working?t=${bust}`;
 }
 
 export function originalPdfUrl(id: string): string {
-  return `${apiBase()}/documents/${id}/original`;
+  return `${API_BASE}/documents/${id}/original`;
 }
 
 export function fontUrl(id: string, name: string, page = 0): string {
-  return `${apiBase()}/documents/${id}/fonts/${encodeURIComponent(name)}?page=${page}`;
+  return `${API_BASE}/documents/${id}/fonts/${encodeURIComponent(name)}?page=${page}`;
 }
 
 export async function exportDocument(
@@ -173,7 +167,7 @@ export async function exportDocument(
 ): Promise<{ blob: Blob; filename: string }> {
   let res: Response;
   try {
-    res = await fetch(`${apiBase()}/documents/${id}/export`, { method: "POST" });
+    res = await fetch(`${API_BASE}/documents/${id}/export`, { method: "POST" });
   } catch {
     throw new ApiError(
       "Cannot reach the editor server. Start the backend on port 8000.",

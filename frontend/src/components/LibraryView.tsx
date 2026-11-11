@@ -90,7 +90,7 @@ export function LibraryView() {
                   doc={doc}
                   busy={busyId === doc.id}
                   deleting={deletingId === doc.id}
-                  onOpen={() => router.push(`/playground?draft=${doc.id}`)}
+                  onOpen={() => router.push(`/playground/${doc.id}`)}
                   onDownload={() =>
                     void download(doc.id, doc.has_file !== false && doc.page_count > 0)
                   }
@@ -116,7 +116,7 @@ export function LibraryView() {
                     <tr
                       key={doc.id}
                       className="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-800/80 dark:hover:bg-zinc-900"
-                      onClick={() => router.push(`/playground?draft=${doc.id}`)}
+                      onClick={() => router.push(`/playground/${doc.id}`)}
                     >
                       <td className="max-w-[240px] px-3 py-3 font-medium">
                         <NameField

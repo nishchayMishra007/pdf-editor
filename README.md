@@ -86,12 +86,6 @@ npm run dev -- --port 3000 --hostname 127.0.0.1
 
 Open [http://localhost:3000](http://localhost:3000).
 
-### Windows
-
-Copy the whole `PDF-Editor-Windows` folder onto the Windows PC and double-click `PDF Editor.exe`. Python and Node.js are already inside that folder. Keep the folder together — do not move the exe out on its own.
-
-If Windows says the app is unrecognized, choose More info, then Run anyway. PDFs you upload are stored in `%APPDATA%\PDF Editor`.
-
 API docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
 To point the UI at a different API, create `frontend/.env.local`:
