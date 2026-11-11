@@ -1,0 +1,61 @@
+{
+  "name": "pdf-editor-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop shell for the local PDF editor",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.local.pdfeditor",
+    "productName": "PDF Editor",
+    "asar": true,
+    "npmRebuild": false,
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/python-win",
+        "to": "backend"
+      },
+      {
+        "from": "build/frontend",
+        "to": "frontend"
+      }
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "requestedExecutionLevel": "asInvoker",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PDF Editor",
+      "artifactName": "PDF Editor Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "PDF Editor Portable.${ext}"
+    }
+  }
+}

@@ -28,8 +28,6 @@ export async function loadPdf(url: string): Promise<PDFDocumentProxy> {
   const doc = await getDocument({
     url,
     withCredentials: false,
-    // Prefer native PDF orientation from /Rotate
-    isEvalSupported: false,
   }).promise;
   cache.set(url, doc);
   if (cache.size > 12) {
@@ -84,7 +82,7 @@ export async function renderPageToCanvas(
   const task = page.render({
     canvasContext: ctx,
     viewport,
-  });
+  } as Parameters<PDFPageProxy["render"]>[0]);
   activeRenders.set(canvas, task);
 
   try {

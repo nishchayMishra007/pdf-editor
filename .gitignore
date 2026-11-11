@@ -31,3 +31,9 @@ data/
 
 # OS
 .DS_Store
+
+# Desktop installers and PyInstaller work files
+desktop/release/
+desktop/pyinstaller-work/
+PDF-Editor-Windows/
+PDF-Editor-Windows.zip

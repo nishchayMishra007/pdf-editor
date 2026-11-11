@@ -20,7 +20,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setNavOpen(false);
     try {
       const doc = await startDraft();
-      router.push(`/playground/${doc.id}`);
+      router.push(`/playground?draft=${doc.id}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not start a draft";
       useEditorStore.getState().setError(msg);

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import shutil
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -13,8 +15,18 @@ import fitz
 
 logger = logging.getLogger(__name__)
 
+
+def _fonts_dir() -> Path:
+    """Bundled TTFs. PyInstaller extracts them next to the frozen app."""
+    if getattr(sys, "frozen", False):
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            return Path(meipass) / "fonts"
+    return Path(__file__).resolve().parents[2] / "fonts"
+
+
 # Bundled fallbacks live next to the package (Phase 0 ships Liberation if present).
-FALLBACK_DIR = Path(__file__).resolve().parents[2] / "fonts"
+FALLBACK_DIR = _fonts_dir()
 BUNDLED_CANDIDATES = [
     "LiberationSans-Regular.ttf",
     "LiberationSerif-Regular.ttf",
@@ -66,7 +78,10 @@ def extract_page_fonts(doc: fitz.Document, page: fitz.Page) -> dict[str, bytes]:
 
 
 def find_bundled_font(prefer: str = "sans") -> Optional[Path]:
-    FALLBACK_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        FALLBACK_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
     prefer_order = BUNDLED_CANDIDATES[:]
     if prefer == "serif":
         prefer_order = [
@@ -84,7 +99,10 @@ def find_bundled_font(prefer: str = "sans") -> Optional[Path]:
 
 def ensure_bundled_fonts() -> list[Path]:
     """Copy system Liberation/DejaVu fonts into backend/fonts if available."""
-    FALLBACK_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        FALLBACK_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        logger.debug("Fallback font directory is not writable: %s", FALLBACK_DIR)
     found: list[Path] = []
     search_roots = [
         Path("/System/Library/Fonts"),
@@ -92,7 +110,14 @@ def ensure_bundled_fonts() -> list[Path]:
         Path("/usr/share/fonts"),
         Path("/usr/local/share/fonts"),
         Path.home() / "Library/Fonts",
+        FALLBACK_DIR / "liberation-fonts-ttf-2.1.5",
     ]
+    if sys.platform == "win32":
+        windir = Path(os.environ.get("WINDIR", r"C:\Windows"))
+        search_roots.append(windir / "Fonts")
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            search_roots.append(Path(local_app_data) / "Microsoft" / "Windows" / "Fonts")
     # Prefer exact libre font filenames; avoid Arial Narrow etc. which skew metrics.
     hunt = {
         "LiberationSans-Regular.ttf": [

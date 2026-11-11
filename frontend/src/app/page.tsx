@@ -15,7 +15,7 @@ export default function HomePage() {
     setCreating(true);
     try {
       const doc = await startDraft();
-      router.push(`/playground/${doc.id}`);
+      router.push(`/playground?draft=${doc.id}`);
     } catch (e) {
       useEditorStore
         .getState()
